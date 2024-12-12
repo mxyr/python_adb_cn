@@ -11,7 +11,6 @@ class 模拟器实例:
     匹配可信度 = 0.9
     重试次数 = 3
     重试延迟 = 1
-    点击按钮延迟 = 1
     加载判定次数 = 2
     截图计数器 = 1
     操作延迟 = 0.5
@@ -40,6 +39,7 @@ class 模拟器实例:
         self.截图文件名 = f"{self.实例编号_文件名}.png"
         self.截图路径 = os.path.join(self.临时文件路径, self.截图文件名)
         self.截图指令 = f"{self.adb指令头} exec-out screencap -p > {self.截图路径}"
+        self.分辨率 = self.屏幕分辨率()
         if self.log:
             self.日志文件 = open(self.日志文件路径, "a")
         if self.debug:
@@ -56,20 +56,20 @@ class 模拟器实例:
         if self.log:
             self.带时间戳写入日志(写入内容, 时间格式=时间格式)
 
-    def 图片信息读取(self, 路径):
+    def 图片信息读取(self, 路径: str):
         图片信息 = cv2.imdecode(np.fromfile(路径, dtype=np.uint8), cv2.IMREAD_COLOR)
         if self.debug:
             self.打印并写入日志("读取图片：" + 路径)
         return 图片信息
 
-    def 图片定位(self, 匹配图片):
-        subprocess.Popen(self.截图指令, shell=True).wait()
-        原始图片 = self.图片信息读取(self.截图路径)
+    def 图片定位(self, 匹配图片: str):
+        图片保存路径 = self.截图()
+        原始图片 = self.图片信息读取(图片保存路径)
         匹配图片信息 = self.图片信息读取(匹配图片)
         匹配结果 = pyscreeze.locate(匹配图片信息, 原始图片, confidence=self.匹配可信度)
         中心坐标 = pyscreeze.center(匹配结果)
         if self.debug:
-            self.打印并写入日志("中心坐标为：" + str(中心坐标))
+            self.打印并写入日志(匹配图片 + "中心坐标为：" + str(中心坐标))
         return 中心坐标[0], 中心坐标[1]
 
     def 截图(self, *保存路径):
@@ -86,12 +86,12 @@ class 模拟器实例:
         subprocess.Popen(截图指令, shell=True).wait()
         if self.debug:
             self.打印并写入日志(f"截图成功，文件：{保存路径}")
+        return 保存路径
 
     def 点击(self, x, y):
         指令 = f"{self.adb指令头} shell input tap {x} {y}"
         subprocess.Popen(指令).wait()
-        if self.debug:
-            self.打印并写入日志(f"点击{x},{y}")
+        self.打印并写入日志(f"点击{x},{y}")
         time.sleep(self.操作延迟)
 
     def 点击按钮(self, 图标名称):
@@ -99,8 +99,8 @@ class 模拟器实例:
         尝试次数 = 0
         while 尝试次数 < self.重试次数:
             try:
-                x坐标, y坐标 = self.图片定位(图标)
                 self.打印并写入日志(f"点击按钮：{图标名称}")
+                x坐标, y坐标 = self.图片定位(图标)
                 break
             except pyscreeze.ImageNotFoundException:
                 尝试次数 += 1
@@ -135,6 +135,33 @@ class 模拟器实例:
                         "等待确认" + str(计数器) + "/" + str(self.加载判定次数)
                     )
 
+    def 尝试寻找(self, 图片名称):
+        图片 = os.path.join(self.图标路径, f"{图片名称}.png")
+        尝试次数 = 0
+        while 尝试次数 < self.重试次数:
+            try:
+                self.打印并写入日志(f"尝试寻找：{图片名称}")
+                x坐标, y坐标 = self.图片定位(图片)
+                break
+            except pyscreeze.ImageNotFoundException:
+                尝试次数 += 1
+                self.打印并写入日志(
+                    "未找到图片！正在重试：" + str(尝试次数) + "/" + str(self.重试次数)
+                )
+                time.sleep(self.重试延迟)
+        if 尝试次数 < self.重试次数:
+            return x坐标, y坐标
+        else:
+            self.打印并写入日志(f"找不到图片（{图片名称}）！")
+            if self.log:
+                self.日志关闭()
+            return -1
+
+    def 屏幕分辨率(self):
+        指令 = f"{self.adb指令头} shell wm size"
+        返回值 = subprocess.Popen(指令, shell=True, stdout=subprocess.PIPE).stdout
+        return 返回值
+
     def 返回键(self):
         指令 = f"{self.adb指令头} shell input keyevent 4"
         subprocess.Popen(指令).wait()
@@ -147,7 +174,8 @@ class 模拟器实例:
         if self.debug:
             self.打印并写入日志("向下滚动键")
         time.sleep(self.操作延迟)
-    def 滑动(self,x,y,dx,dy,时间=500):
+
+    def 滑动(self, x, y, dx, dy, 时间=500):
         指令 = f"{self.adb指令头} shell input swipe {x} {y} {x+dx} {y+dy} {时间}"
         subprocess.Popen(指令).wait()
         self.打印并写入日志(f"滑动，起始点{x}，{y}；滑移{dx}，{dy}，用时：{时间}ms")
