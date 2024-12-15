@@ -22,7 +22,7 @@ class 模拟器实例:
         log=False,
         日志文件路径="./tmp/log.txt",
         临时文件路径="./tmp/",
-        图标路径="./图标/adb",
+        图标路径="./图标",
     ):
         self.实例编号 = 实例编号
         if 实例编号.find(":") == -1:
@@ -91,6 +91,8 @@ class 模拟器实例:
         return 保存路径
 
     def 点击(self, x, y):
+        x = int(x)
+        y = int(y)
         指令 = f"{self.adb指令头} shell input tap {x} {y}"
         subprocess.Popen(指令).wait()
         self.打印并写入日志(f"点击{x},{y}")
@@ -185,11 +187,17 @@ class 模拟器实例:
         查找结果 = self.尝试寻找(图片名称)
         if 查找结果 != -1:
             self.点击(查找结果[0], 查找结果[1])
+            return True
+        else:
+            return False
 
     def 等待_直到找到并点击(self, 图片名称: str, 超时: int):
         查找结果 = self.等待_直到找到(图片名称, 超时)
         if 查找结果 != -1:
             self.点击(查找结果[0], 查找结果[1])
+            return True
+        else:
+            return False
 
     def 点击_直到消失(self, 图片名称):
         找到 = True
@@ -222,6 +230,10 @@ class 模拟器实例:
         time.sleep(self.操作延迟)
 
     def 滑动(self, x, y, dx, dy, 时间=500):
+        x = int(x)
+        y = int(y)
+        dx = int(dx)
+        dy = int(dy)
         指令 = f"{self.adb指令头} shell input swipe {x} {y} {x+dx} {y+dy} {时间}"
         subprocess.Popen(指令).wait()
         self.打印并写入日志(f"滑动，起始点{x}，{y}；滑移{dx}，{dy}，用时：{时间}ms")
